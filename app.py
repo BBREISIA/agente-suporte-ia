@@ -72,7 +72,7 @@ with st.sidebar:
     )
 
     st.markdown("---")
-    st.caption("Desenvolvido por git initBruno Reis | Impulza Digital")
+    st.caption("Desenvolvido por BRUNO REIS | Impulza Digital")
 
 # ── SYSTEM PROMPTS ─────────────────────────────────
 PERSONAS = {
