@@ -173,7 +173,7 @@ if prompt := st.chat_input("Digite sua mensagem..."):
 
     st.session_state.messages.append({
         "role": "assistant",
-        "content": response.content
+        "content": full_response
     })
 
 st.divider()
