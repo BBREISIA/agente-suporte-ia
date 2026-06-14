@@ -164,10 +164,12 @@ if prompt := st.chat_input("Digite sua mensagem..."):
             lc_messages.append(AIMessage(content=m["content"]))
 
     with st.chat_message("assistant"):
-        with st.spinner("Pensando..."):
-            model = get_model()
-            response = model.invoke(lc_messages)
-            st.write(response.content)
+        response_placeholder = st.empty()
+        full_response = ""
+        for chunk in get_model().stream(lc_messages):
+            full_response += chunk.content
+            response_placeholder.markdown(full_response + "▌")
+        response_placeholder.markdown(full_response)
 
     st.session_state.messages.append({
         "role": "assistant",
