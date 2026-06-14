@@ -1,8 +1,7 @@
 # ═══════════════════════════════════════════════════
-#   AGENTE DE SUPORTE IA
+#   AGENTE DE SUPORTE IA COM BUSCA WEB
 #   Bruno Reis | Impulza Digital
-#   Stack: Streamlit + LangChain + Groq (grátis)
-#   Modelo: Llama 3.3 70B via Groq API
+#   Stack: Streamlit + LangChain + Groq + Tavily
 # ═══════════════════════════════════════════════════
 
 import streamlit as st
@@ -10,11 +9,10 @@ import os
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from tavily import TavilyClient
 
-# Carrega a GROQ_API_KEY do arquivo .env
 load_dotenv()
 
-# ── CONFIGURAÇÃO DA PÁGINA ─────────────────────────
 st.set_page_config(
     page_title="Agente de Suporte IA",
     page_icon="🤖",
@@ -22,7 +20,6 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ── ESTILO VISUAL ──────────────────────────────────
 st.markdown("""
 <style>
     .stApp { background-color: #0c0c14; color: #dde1f0; }
@@ -40,14 +37,10 @@ st.markdown("""
         font-weight: 700;
         border-radius: 8px;
         border: none;
-        transition: all .15s;
     }
-    .stButton > button:hover { background: #d43e26; }
-    .stSelectbox label { color: #636380 !important; }
 </style>
 """, unsafe_allow_html=True)
 
-# ── SIDEBAR ────────────────────────────────────────
 with st.sidebar:
     st.title("⚙️ Painel do Agente")
     st.markdown("""
@@ -56,53 +49,44 @@ with st.sidebar:
     🦙 Modelo: Llama 3.3 70B  
     ⚡ Powered by Groq (grátis)  
     🔗 Orquestrado por LangChain  
-    🎨 Interface: Streamlit
-
-    ---
-    Agente com memória de conversa,
-    3 personalidades configuráveis
-    e deploy 100% gratuito na nuvem.
+    🌐 Busca web: Tavily
     ---
     """)
 
-    # Seletor de personalidade
     persona = st.selectbox(
         "🎭 Personalidade",
         ["Suporte Formal", "Suporte Amigável", "Especialista Técnico"]
     )
 
     st.markdown("---")
-    st.caption("Desenvolvido por BRUNO REIS | Impulza Digital")
+    st.caption("Desenvolvido por Bruno Reis | Impulza Digital")
 
-# ── SYSTEM PROMPTS ─────────────────────────────────
 PERSONAS = {
     "Suporte Formal": """
 Você é um agente de suporte profissional e formal.
-Use linguagem respeitosa e objetiva. Trate o cliente como "senhor(a)".
-Resolva problemas de forma clara e estruturada em etapas numeradas.
+Use linguagem respeitosa. Trate o cliente como "senhor(a)".
 Responda sempre em português do Brasil.
-Quando não souber, seja honesto e ofereça escalar para um humano.
+Quando tiver acesso a informações da web, use-as para dar respostas atualizadas.
 """,
     "Suporte Amigável": """
-Você é um agente de suporte jovem, amigável e descontraído.
-Use linguagem leve, emojis moderados e crie conexão com o cliente.
-Seja empático e resolutivo. Responda em português do Brasil.
-Quando não souber, seja honesto e proponha alternativas criativas.
+Você é um agente de suporte jovem e amigável.
+Use linguagem leve e emojis moderados.
+Responda em português do Brasil.
+Quando tiver acesso a informações da web, use-as para dar respostas atualizadas.
 """,
     "Especialista Técnico": """
 Você é um especialista técnico de suporte avançado.
-Forneça explicações detalhadas, passos numerados e soluções técnicas precisas.
-Use terminologia correta sem ser pedante. Responda em português do Brasil.
-Ofereça múltiplas soluções quando possível, da mais simples à mais robusta.
+Forneça explicações detalhadas e soluções precisas.
+Responda em português do Brasil.
+Quando tiver acesso a informações da web, use-as para dar respostas atualizadas.
 """
 }
 
-# ── INICIALIZAR MODELO GROQ ────────────────────────
 @st.cache_resource
 def get_model():
     api_key = os.getenv("GROQ_API_KEY")
     if not api_key:
-        st.error("❌ GROQ_API_KEY não encontrada. Verifique o arquivo .env")
+        st.error("❌ GROQ_API_KEY não encontrada.")
         st.stop()
     return ChatGroq(
         model="llama-3.3-70b-versatile",
@@ -110,63 +94,86 @@ def get_model():
         api_key=api_key
     )
 
-# ── HISTÓRICO DE MENSAGENS ─────────────────────────
+def buscar_web(pergunta):
+    """Busca informações atuais na web via Tavily"""
+    try:
+        tavily_key = os.getenv("TAVILY_API_KEY")
+        if not tavily_key:
+            return None
+        client = TavilyClient(api_key=tavily_key)
+        resultado = client.search(pergunta, max_results=3)
+        textos = []
+        for r in resultado.get("results", []):
+            textos.append(f"- {r['title']}: {r['content'][:300]}")
+        return "\n".join(textos)
+    except:
+        return None
+
+def precisa_busca_web(pergunta):
+    """Detecta se a pergunta precisa de informações atuais"""
+    palavras = [
+        "hoje", "agora", "atual", "atualmente", "recente", "último", "ultima",
+        "2024", "2025", "2026", "notícia", "noticia", "resultado", "jogo",
+        "placar", "copa", "campeonato", "preço", "cotação", "dólar", "bitcoin",
+        "aconteceu", "ocorreu", "quem ganhou", "score"
+    ]
+    pergunta_lower = pergunta.lower()
+    return any(p in pergunta_lower for p in palavras)
+
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 if "current_persona" not in st.session_state:
     st.session_state.current_persona = persona
 
-# Reinicia conversa ao trocar de personalidade
 if st.session_state.current_persona != persona:
     st.session_state.messages = []
     st.session_state.current_persona = persona
 
-# ── INTERFACE PRINCIPAL ────────────────────────────
 st.title("🤖 Agente de Suporte IA")
-st.caption(f"Modo: {persona}  |  Modelo: Llama 3.3 70B via Groq  |  Impulza Digital")
+st.caption(f"Modo: {persona}  |  Llama 3.3 70B via Groq  |  🌐 Busca web ativa  |  Impulza Digital")
 st.divider()
 
-# Boas-vindas na primeira mensagem
 if not st.session_state.messages:
     with st.chat_message("assistant"):
-        st.write("👋 Olá! Sou seu agente de suporte com IA. Como posso ajudar?")
+        st.write("👋 Olá! Sou seu agente de suporte com IA e busca web em tempo real. Como posso ajudar?")
 
-# Exibir histórico da conversa
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
 
-# ── INPUT DO USUÁRIO ───────────────────────────────
 if prompt := st.chat_input("Digite sua mensagem..."):
 
-    # Salva e exibe mensagem do usuário
     st.session_state.messages.append({"role": "user", "content": prompt})
     with st.chat_message("user"):
         st.write(prompt)
 
-    # Monta histórico para o LangChain
-    lc_messages = [SystemMessage(content=PERSONAS[persona])]
+    # Busca na web se necessário
+    contexto_web = ""
+    if precisa_busca_web(prompt):
+        with st.spinner("🌐 Buscando informações atuais..."):
+            resultado = buscar_web(prompt)
+            if resultado:
+                contexto_web = f"\n\nInformações atuais encontradas na web:\n{resultado}\n\nUse essas informações para responder."
+
+    lc_messages = [SystemMessage(content=PERSONAS[persona] + contexto_web)]
     for m in st.session_state.messages:
         if m["role"] == "user":
             lc_messages.append(HumanMessage(content=m["content"]))
         else:
             lc_messages.append(AIMessage(content=m["content"]))
 
-    # Gera resposta via Groq
     with st.chat_message("assistant"):
         with st.spinner("Pensando..."):
             model = get_model()
             response = model.invoke(lc_messages)
             st.write(response.content)
 
-    # Salva resposta no histórico
     st.session_state.messages.append({
         "role": "assistant",
         "content": response.content
     })
 
-# ── BOTÃO LIMPAR CONVERSA ──────────────────────────
 st.divider()
 col1, col2 = st.columns([1, 5])
 with col1:
