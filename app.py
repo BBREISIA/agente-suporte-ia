@@ -34,6 +34,30 @@ section[data-testid="stSidebar"] {
     border-right: 1px solid #1a1a2e;
 }
 #MainMenu, footer, header { visibility: hidden; }
+
+/* ── CORRIGIR ÍCONES MATERIAL QUEBRADOS ── */
+[data-testid="collapsedControl"] {
+    visibility: visible !important;
+}
+[data-testid="collapsedControl"] svg {
+    display: block !important;
+}
+/* Esconde texto de ícone cru quando a fonte de ícones falha ao carregar */
+span[class*="material-icons"],
+span[class*="material-symbols"] {
+    font-size: 0 !important;
+}
+span[class*="material-icons"]::before,
+span[class*="material-symbols"]::before {
+    content: "" !important;
+}
+
+/* ── EVITAR CORTE DE TEXTO/EMOJI NOS BADGES ── */
+.badge, .fh-badge, .rank-name, .rank-company {
+    white-space: normal !important;
+    overflow: visible !important;
+    text-overflow: unset !important;
+}
 .stDeployButton { display: none; }
 
 /* ── CABEÇALHO FIXO ── */
@@ -365,6 +389,46 @@ hr { border-color: #1a1a2e !important; margin: 12px 0 !important; }
     color: #22d3a5;
     margin-bottom: 8px;
 }
+
+/* ── FONTES CONSULTADAS ── */
+.fontes-box {
+    background: rgba(255,255,255,0.02);
+    border: 1px solid #1a1a2e;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.fontes-label {
+    font-size: 10px;
+    font-weight: 700;
+    color: #4a4a6a;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.fonte-link {
+    font-size: 12px;
+    color: #5b8dee !important;
+    text-decoration: none !important;
+    display: block;
+    padding: 4px 8px;
+    background: rgba(91,141,238,0.06);
+    border-radius: 6px;
+    border: 1px solid rgba(91,141,238,0.12);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.fonte-link:hover {
+    background: rgba(91,141,238,0.12) !important;
+    border-color: rgba(91,141,238,0.3) !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -510,18 +574,24 @@ def get_model():
     )
 
 def buscar_web(pergunta):
+    """Busca na web e retorna texto + lista de fontes (título + url)"""
     try:
         tavily_key = os.getenv("TAVILY_API_KEY")
         if not tavily_key:
-            return None
+            return None, []
         client = TavilyClient(api_key=tavily_key)
         resultado = client.search(pergunta, max_results=3)
         textos = []
+        fontes = []
         for r in resultado.get("results", []):
             textos.append(f"- {r['title']}: {r['content'][:300]}")
-        return "\n".join(textos)
-    except:
-        return None
+            fontes.append({
+                "titulo": r.get("title", "Fonte"),
+                "url": r.get("url", "")
+            })
+        return "\n".join(textos), fontes
+    except Exception:
+        return None, []
 
 def precisa_busca_web(pergunta):
     palavras = [
@@ -686,6 +756,12 @@ if not st.session_state.messages:
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
+        if "fontes" in msg and msg["fontes"]:
+            fontes_html = '<div class="fontes-box"><div class="fontes-label">🔗 Fontes consultadas</div>'
+            for f in msg["fontes"]:
+                fontes_html += f'<a href="{f["url"]}" target="_blank" class="fonte-link">{f["titulo"][:60]}</a>'
+            fontes_html += '</div>'
+            st.markdown(fontes_html, unsafe_allow_html=True)
         if "time" in msg:
             st.markdown(
                 f'<div class="msg-time">{msg["time"]}</div>',
@@ -712,6 +788,7 @@ if prompt := st.chat_input("Digite sua mensagem..."):
 
     # Detecta moeda ou busca web genérica
     contexto_web = ""
+    fontes_consultadas = []
     moeda_detectada = detectar_moeda(prompt)
 
     if moeda_detectada:
@@ -730,15 +807,17 @@ Cotação atual de {cotacao['moeda']} em Reais (BRL):
 
 Use esses dados exatos na resposta.
 """
+            fontes_consultadas = [{"titulo": "AwesomeAPI — Cotações em tempo real", "url": "https://docs.awesomeapi.com.br/api-de-moedas"}]
             st.session_state.web_searches += 1
     elif precisa_busca_web(prompt):
         st.markdown(
             '<div class="search-indicator">🌐 Buscando informações atuais na web...</div>',
             unsafe_allow_html=True
         )
-        resultado = buscar_web(prompt)
+        resultado, fontes = buscar_web(prompt)
         if resultado:
             contexto_web = f"\n\nInformações atuais da web:\n{resultado}\n\nUse essas informações na resposta."
+            fontes_consultadas = fontes
             st.session_state.web_searches += 1
 
     # Monta histórico para LangChain
@@ -757,17 +836,27 @@ Use esses dados exatos na resposta.
             full_response += chunk.content
             placeholder.markdown(full_response + "▌")
         placeholder.markdown(full_response)
+
+        # Exibe as fontes consultadas, se houver
+        if fontes_consultadas:
+            fontes_html = '<div class="fontes-box"><div class="fontes-label">🔗 Fontes consultadas</div>'
+            for f in fontes_consultadas:
+                fontes_html += f'<a href="{f["url"]}" target="_blank" class="fonte-link">{f["titulo"][:60]}</a>'
+            fontes_html += '</div>'
+            st.markdown(fontes_html, unsafe_allow_html=True)
+
         resp_time = datetime.now().strftime("%H:%M")
         st.markdown(
             f'<div class="msg-time">{resp_time}</div>',
             unsafe_allow_html=True
         )
 
-    # Salva resposta no histórico
+    # Salva resposta no histórico (incluindo fontes, para persistir após rerun)
     st.session_state.messages.append({
         "role": "assistant",
         "content": full_response,
-        "time": resp_time
+        "time": resp_time,
+        "fontes": fontes_consultadas
     })
 
     st.rerun()
