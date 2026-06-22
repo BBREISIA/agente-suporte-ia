@@ -535,21 +535,43 @@ def precisa_busca_web(pergunta):
 
 @st.cache_data(ttl=300)  # Atualiza no máximo a cada 5 minutos
 def buscar_cotacao_dolar():
-    """Busca cotação atual do dólar via API gratuita AwesomeAPI"""
+    """Busca cotação atual do dólar — tenta 2 fontes diferentes (fallback)"""
+    # Fonte 1: AwesomeAPI
     try:
         resposta = requests.get(
             "https://economia.awesomeapi.com.br/json/last/USD-BRL",
-            timeout=5
+            timeout=8,
+            headers={"User-Agent": "Mozilla/5.0"}
         )
-        dados = resposta.json()
-        valor = dados["USDBRL"]
-        return {
-            "compra": float(valor["bid"]),
-            "venda": float(valor["ask"]),
-            "variacao": float(valor["pctChange"]),
-        }
-    except:
-        return None
+        if resposta.status_code == 200:
+            dados = resposta.json()
+            valor = dados["USDBRL"]
+            return {
+                "compra": float(valor["bid"]),
+                "venda": float(valor["ask"]),
+                "variacao": float(valor["pctChange"]),
+            }
+    except Exception:
+        pass
+
+    # Fonte 2: exchangerate-api (fallback gratuito, sem necessidade de key)
+    try:
+        resposta = requests.get(
+            "https://open.er-api.com/v6/latest/USD",
+            timeout=8
+        )
+        if resposta.status_code == 200:
+            dados = resposta.json()
+            taxa = dados["rates"]["BRL"]
+            return {
+                "compra": float(taxa) - 0.01,
+                "venda": float(taxa),
+                "variacao": 0.0,
+            }
+    except Exception:
+        pass
+
+    return None
 
 def buscar_cotacao(moeda="USD"):
     """Busca cotação de qualquer moeda suportada via API gratuita"""
@@ -620,43 +642,45 @@ if not st.session_state.messages:
     if cotacao_dolar:
         cor_variacao = "#22d3a5" if cotacao_dolar["variacao"] >= 0 else "#ef233c"
         sinal = "▲" if cotacao_dolar["variacao"] >= 0 else "▼"
-        painel_dolar = f"""
-        <div class="dolar-panel">
-            <div class="dolar-header">
-                <span>💵 Dólar Comercial</span>
-                <span class="dolar-date">{data_hoje}</span>
-            </div>
-            <div class="dolar-value">R$ {cotacao_dolar['venda']:.2f}</div>
-            <div class="dolar-details">
-                <span>Compra: R$ {cotacao_dolar['compra']:.2f}</span>
-                <span style="color:{cor_variacao}">{sinal} {abs(cotacao_dolar['variacao']):.2f}%</span>
-            </div>
-        </div>
-        """
+        painel_dolar = (
+            '<div class="dolar-panel">'
+            '<div class="dolar-header">'
+            '<span>💵 Dólar Comercial</span>'
+            f'<span class="dolar-date">{data_hoje}</span>'
+            '</div>'
+            f'<div class="dolar-value">R$ {cotacao_dolar["venda"]:.2f}</div>'
+            '<div class="dolar-details">'
+            f'<span>Compra: R$ {cotacao_dolar["compra"]:.2f}</span>'
+            f'<span style="color:{cor_variacao}">{sinal} {abs(cotacao_dolar["variacao"]):.2f}%</span>'
+            '</div>'
+            '</div>'
+        )
     else:
-        painel_dolar = f"""
-        <div class="dolar-panel">
-            <div class="dolar-header">
-                <span>💵 Dólar Comercial</span>
-                <span class="dolar-date">{data_hoje}</span>
-            </div>
-            <div class="dolar-value" style="color:#4a4a6a;font-size:16px">Indisponível no momento</div>
-        </div>
-        """
+        painel_dolar = (
+            '<div class="dolar-panel">'
+            '<div class="dolar-header">'
+            '<span>💵 Dólar Comercial</span>'
+            f'<span class="dolar-date">{data_hoje}</span>'
+            '</div>'
+            '<div class="dolar-value" style="color:#4a4a6a;font-size:16px">Indisponível no momento</div>'
+            '</div>'
+        )
 
-    st.markdown(f"""
-    <div class="welcome-card">
-        <h3>👋 Olá! Como posso ajudar?</h3>
-        <p>Sou um agente de suporte com IA e acesso à internet em tempo real.<br>
-        Faça qualquer pergunta — suporte técnico, informações atuais ou curiosidades.</p>
-        {painel_dolar}
-        <div class="suggestions-row">
-            <span class="suggestion-chip">⚽ Resultados do futebol</span>
-            <span class="suggestion-chip">🤖 O que é IA?</span>
-            <span class="suggestion-chip">📱 Como te contratar?</span>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+    welcome_html = (
+        '<div class="welcome-card">'
+        '<h3>👋 Olá! Como posso ajudar?</h3>'
+        '<p>Sou um agente de suporte com IA e acesso à internet em tempo real.<br>'
+        'Faça qualquer pergunta — suporte técnico, informações atuais ou curiosidades.</p>'
+        + painel_dolar +
+        '<div class="suggestions-row">'
+        '<span class="suggestion-chip">⚽ Resultados do futebol</span>'
+        '<span class="suggestion-chip">🤖 O que é IA?</span>'
+        '<span class="suggestion-chip">📱 Como te contratar?</span>'
+        '</div>'
+        '</div>'
+    )
+
+    st.markdown(welcome_html, unsafe_allow_html=True)
 
 # ── HISTÓRICO ──────────────────────────────────────
 for msg in st.session_state.messages:
