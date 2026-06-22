@@ -35,21 +35,27 @@ section[data-testid="stSidebar"] {
 }
 #MainMenu, footer, header { visibility: hidden; }
 
-/* ── CORRIGIR ÍCONES MATERIAL QUEBRADOS ── */
-[data-testid="collapsedControl"] {
-    visibility: visible !important;
-}
-[data-testid="collapsedControl"] svg {
-    display: block !important;
-}
-/* Esconde texto de ícone cru quando a fonte de ícones falha ao carregar */
+/* ── CORRIGIR ÍCONES MATERIAL QUEBRADOS (fonte pode falhar offline) ── */
+/* Esconde qualquer texto cru de ícone de fonte que não carregou */
 span[class*="material-icons"],
-span[class*="material-symbols"] {
+span[class*="material-symbols"],
+[data-testid="stIconMaterial"] {
     font-size: 0 !important;
+    line-height: 0 !important;
+    color: transparent !important;
 }
 span[class*="material-icons"]::before,
 span[class*="material-symbols"]::before {
     content: "" !important;
+}
+/* Botão de colapsar a sidebar - usa um símbolo simples sem depender de fonte externa */
+[data-testid="collapsedControl"] button {
+    font-size: 0 !important;
+}
+[data-testid="collapsedControl"] button::after {
+    content: "☰";
+    font-size: 18px !important;
+    color: #f55036;
 }
 
 /* ── EVITAR CORTE DE TEXTO/EMOJI NOS BADGES ── */
@@ -754,7 +760,8 @@ if not st.session_state.messages:
 
 # ── HISTÓRICO ──────────────────────────────────────
 for msg in st.session_state.messages:
-    with st.chat_message(msg["role"]):
+    avatar_icon = "🧑" if msg["role"] == "user" else "🤖"
+    with st.chat_message(msg["role"], avatar=avatar_icon):
         st.write(msg["content"])
         if "fontes" in msg and msg["fontes"]:
             fontes_html = '<div class="fontes-box"><div class="fontes-label">🔗 Fontes consultadas</div>'
@@ -779,7 +786,7 @@ if prompt := st.chat_input("Digite sua mensagem..."):
         "time": now
     })
 
-    with st.chat_message("user"):
+    with st.chat_message("user", avatar="🧑"):
         st.write(prompt)
         st.markdown(
             f'<div class="msg-time">{now}</div>',
@@ -829,7 +836,7 @@ Use esses dados exatos na resposta.
             lc_messages.append(AIMessage(content=m["content"]))
 
     # Streaming da resposta
-    with st.chat_message("assistant"):
+    with st.chat_message("assistant", avatar="🤖"):
         placeholder = st.empty()
         full_response = ""
         for chunk in get_model().stream(lc_messages):
