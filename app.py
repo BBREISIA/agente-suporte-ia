@@ -443,8 +443,6 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 if "web_searches" not in st.session_state:
     st.session_state.web_searches = 0
-if "current_persona" not in st.session_state:
-    st.session_state.current_persona = "Suporte Formal"
 
 # ── DADOS DO RANKING ───────────────────────────────
 RANKING_IAS = [
@@ -466,13 +464,6 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-    persona = st.selectbox(
-        "🎭 Personalidade",
-        ["Suporte Formal", "Suporte Amigável", "Especialista Técnico"],
-        help="Cada personalidade tem um estilo diferente de resposta"
-    )
-
-    st.markdown("---")
     st.markdown("**📊 Sessão atual**")
     col1, col2 = st.columns(2)
     with col1:
@@ -543,28 +534,78 @@ with st.sidebar:
     </div>
     """, unsafe_allow_html=True)
 
-# ── PERSONAS ───────────────────────────────────────
-PERSONAS = {
-    "Suporte Formal": """
-Você é um agente de suporte profissional e formal da Impulza Digital.
-Use linguagem respeitosa. Trate o cliente como "senhor(a)".
-Resolva problemas de forma clara em etapas numeradas.
-Responda sempre em português do Brasil.
+# ── DOMÍNIOS DE ATENDIMENTO (detectados automaticamente) ──
+DOMINIOS = {
+    "Bancário": {
+        "icone": "🏦",
+        "cor": "#f5c518",
+        "prompt": """
+Você é um agente de suporte especializado em produtos bancários e financeiros da Impulza Digital.
+Domine assuntos como: conta corrente, cartão de crédito, empréstimos, investimentos, Pix, taxas e tarifas.
+Use linguagem clara e precisa sobre termos financeiros. Trate o cliente como "senhor(a)".
+Resolva problemas em etapas numeradas. Responda em português do Brasil.
 Quando tiver informações da web, use-as para respostas atualizadas.
-""",
-    "Suporte Amigável": """
-Você é um agente de suporte jovem, amigável e descontraído da Impulza Digital.
-Use linguagem leve, emojis moderados e crie conexão com o cliente.
-Seja empático e resolutivo. Responda em português do Brasil.
+"""
+    },
+    "E-commerce": {
+        "icone": "🛒",
+        "cor": "#5b8dee",
+        "prompt": """
+Você é um agente de suporte especializado em e-commerce da Impulza Digital.
+Domine assuntos como: rastreamento de pedidos, prazos de entrega, trocas, devoluções e reembolsos.
+Seja prático e resolutivo, com linguagem acessível. Responda em português do Brasil.
 Quando tiver informações da web, use-as para respostas atualizadas.
-""",
-    "Especialista Técnico": """
+"""
+    },
+    "Técnico": {
+        "icone": "💻",
+        "cor": "#22d3a5",
+        "prompt": """
 Você é um especialista técnico de suporte avançado da Impulza Digital.
+Domine assuntos como: bugs, erros de API, integrações, configuração de sistemas e troubleshooting.
 Forneça explicações detalhadas, passos numerados e soluções precisas.
 Responda em português do Brasil.
 Quando tiver informações da web, use-as para respostas atualizadas.
 """
+    },
+    "Geral": {
+        "icone": "🤖",
+        "cor": "#6b6b8a",
+        "prompt": """
+Você é um agente de suporte geral da Impulza Digital, atencioso e resolutivo.
+Responda com clareza qualquer tipo de pergunta. Responda em português do Brasil.
+Quando tiver informações da web, use-as para respostas atualizadas.
+"""
+    }
 }
+
+def detectar_dominio(pergunta):
+    """Detecta automaticamente qual domínio de atendimento a pergunta pertence"""
+    p = pergunta.lower()
+
+    palavras_bancario = [
+        "conta", "cartão", "cartao", "empréstimo", "emprestimo", "investimento",
+        "pix", "taxa", "tarifa", "banco", "saldo", "extrato", "fatura",
+        "cdb", "poupança", "poupanca", "financiamento", "crédito", "credito"
+    ]
+    palavras_ecommerce = [
+        "pedido", "entrega", "troca", "devolução", "devolucao", "reembolso",
+        "rastreio", "rastreamento", "comprei", "comprar", "frete", "produto",
+        "cancelar pedido", "nota fiscal"
+    ]
+    palavras_tecnico = [
+        "erro", "bug", "api", "integração", "integracao", "código", "codigo",
+        "configurar", "instalar", "não funciona", "nao funciona", "travou",
+        "sistema", "servidor", "deploy", "função", "funcao"
+    ]
+
+    if any(p2 in p for p2 in palavras_bancario):
+        return "Bancário"
+    elif any(p2 in p for p2 in palavras_ecommerce):
+        return "E-commerce"
+    elif any(p2 in p for p2 in palavras_tecnico):
+        return "Técnico"
+    return "Geral"
 
 # ── FUNÇÕES ────────────────────────────────────────
 @st.cache_resource
@@ -600,14 +641,45 @@ def buscar_web(pergunta):
         return None, []
 
 def precisa_busca_web(pergunta):
-    palavras = [
-        "hoje", "agora", "atual", "atualmente", "recente", "último", "ultima",
+    """
+    Usa o próprio modelo de IA para decidir se a pergunta precisa de
+    informações atuais da web. Muito mais confiável que lista de palavras-chave,
+    pois entende o CONTEXTO da pergunta, não só termos exatos.
+    """
+    # Lista de gatilhos óbvios primeiro (resposta instantânea, sem gastar chamada de API)
+    gatilhos_obvios = [
+        "hoje", "agora", "atual", "atualmente", "recente", "última", "ultima",
         "2024", "2025", "2026", "notícia", "noticia", "resultado", "jogo",
-        "placar", "copa", "campeonato", "preço", "cotação", "dólar", "bitcoin",
-        "aconteceu", "ocorreu", "quem ganhou", "score", "temperatura", "clima",
-        "eleição", "presidente", "governo", "mercado", "bolsa"
+        "placar", "copa", "campeonato", "preço", "preco", "cotação", "cotacao",
+        "dólar", "dolar", "bitcoin", "aconteceu", "ocorreu", "quem ganhou",
+        "score", "temperatura", "clima", "eleição", "eleicao", "presidente",
+        "governo", "mercado", "bolsa", "quem é", "quem e", "o que é",
+        "quando foi", "quando será", "quando sera", "data de", "lançamento",
+        "lancamento", "versão", "versao", "última versão", "ultima versao"
     ]
-    return any(p in pergunta.lower() for p in palavras)
+    if any(g in pergunta.lower() for g in gatilhos_obvios):
+        return True
+
+    # Para perguntas que não bateram com nenhum gatilho óbvio,
+    # pergunta ao próprio modelo se ele tem certeza da resposta
+    try:
+        classificador = get_model()
+        resposta = classificador.invoke([
+            SystemMessage(content=(
+                "Responda APENAS 'SIM' ou 'NAO' (sem pontuação, sem explicação). "
+                "Responda SIM se a pergunta do usuário exigir informação atual, "
+                "recente, específica de fatos do mundo real, dados numéricos exatos, "
+                "versões de software, eventos, preços ou qualquer coisa que possa "
+                "ter mudado ou que você não tenha certeza absoluta de saber. "
+                "Responda NAO se for uma pergunta conceitual, atemporal, de "
+                "conhecimento geral estável, ou conversa casual."
+            )),
+            HumanMessage(content=pergunta)
+        ])
+        return "SIM" in resposta.content.upper()
+    except Exception:
+        # Em caso de falha na classificação, prefere buscar (mais seguro)
+        return False
 
 @st.cache_data(ttl=300)  # Atualiza no máximo a cada 5 minutos
 def buscar_cotacao_dolar():
@@ -684,10 +756,11 @@ def detectar_moeda(pergunta):
         return "GBP"
     return None
 
-# ── VERIFICAR MUDANÇA DE PERSONA ───────────────────
-if st.session_state.current_persona != persona:
-    st.session_state.messages = []
-    st.session_state.current_persona = persona
+# ── ESTADO DO DOMÍNIO ATUAL (atualizado a cada pergunta) ──
+if "dominio_atual" not in st.session_state:
+    st.session_state.dominio_atual = "Geral"
+
+dominio_info = DOMINIOS[st.session_state.dominio_atual]
 
 # ── CABEÇALHO FIXO ─────────────────────────────────
 num_msgs = len(st.session_state.messages)
@@ -702,7 +775,7 @@ st.markdown(f"""
     </div>
     <div class="fh-right">
         <span class="fh-badge fh-online"><span class="status-dot"></span> Online</span>
-        <span class="fh-badge fh-model">⚡ {persona}</span>
+        <span class="fh-badge fh-model" style="color:{dominio_info['cor']};border-color:{dominio_info['cor']}40;background:{dominio_info['cor']}14">{dominio_info['icone']} Modo: {st.session_state.dominio_atual}</span>
         <span class="fh-badge fh-msgs">💬 {num_msgs} msgs</span>
     </div>
 </div>
@@ -793,6 +866,17 @@ if prompt := st.chat_input("Digite sua mensagem..."):
             unsafe_allow_html=True
         )
 
+    # Detecta automaticamente o domínio do atendimento
+    dominio_detectado = detectar_dominio(prompt)
+    st.session_state.dominio_atual = dominio_detectado
+    info_dominio = DOMINIOS[dominio_detectado]
+
+    st.markdown(
+        f'<div class="search-indicator" style="color:{info_dominio["cor"]};background:{info_dominio["cor"]}14;border-color:{info_dominio["cor"]}33">'
+        f'{info_dominio["icone"]} Modo detectado: {dominio_detectado}</div>',
+        unsafe_allow_html=True
+    )
+
     # Detecta moeda ou busca web genérica
     contexto_web = ""
     fontes_consultadas = []
@@ -828,7 +912,7 @@ Use esses dados exatos na resposta.
             st.session_state.web_searches += 1
 
     # Monta histórico para LangChain
-    lc_messages = [SystemMessage(content=PERSONAS[persona] + contexto_web)]
+    lc_messages = [SystemMessage(content=info_dominio["prompt"] + contexto_web)]
     for m in st.session_state.messages:
         if m["role"] == "user":
             lc_messages.append(HumanMessage(content=m["content"]))
