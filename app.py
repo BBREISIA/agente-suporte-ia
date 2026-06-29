@@ -187,7 +187,7 @@ span[class*="material-symbols"]::before {
 }
 
 .sidebar-logo h2 {
-    font-size: 15px !important;
+    font-size: 20px !important;
     font-weight: 800 !important;
     color: #fff !important;
     margin: 6px 0 2px 0 !important;
@@ -197,6 +197,13 @@ span[class*="material-symbols"]::before {
     font-size: 10px !important;
     color: #4a4a6a !important;
     margin: 0 !important;
+}
+
+.sidebar-logo .dev-credit {
+    font-size: 10px !important;
+    color: #f55036 !important;
+    margin: 6px 0 0 0 !important;
+    font-weight: 600 !important;
 }
 
 .stat-card {
@@ -323,7 +330,6 @@ hr { border-color: #1a1a2e !important; margin: 12px 0 !important; }
     border-radius: 12px;
     padding: 16px 20px;
     margin: 18px auto;
-    max-width: 280px;
 }
 
 .dolar-header {
@@ -357,6 +363,57 @@ hr { border-color: #1a1a2e !important; margin: 12px 0 !important; }
     font-size: 11px;
     color: #4a4a6a;
     font-family: 'JetBrains Mono', monospace;
+}
+
+.dolar-panel, .news-panel {
+    height: 100%;
+    box-sizing: border-box;
+}
+
+/* ── PAINEL DE NOTÍCIAS ── */
+.news-panel {
+    background: linear-gradient(135deg, rgba(91,141,238,0.08), rgba(91,141,238,0.02));
+    border: 1px solid rgba(91,141,238,0.2);
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 18px auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.news-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    color: #6b6b8a;
+    font-weight: 600;
+    margin-bottom: 4px;
+}
+
+.noticia-item {
+    font-size: 12px;
+    color: #c8cce8 !important;
+    text-decoration: none !important;
+    display: block;
+    padding: 6px 10px;
+    background: rgba(91,141,238,0.06);
+    border-radius: 6px;
+    border: 1px solid rgba(91,141,238,0.12);
+    line-height: 1.4;
+}
+
+.noticia-item:hover {
+    background: rgba(91,141,238,0.12) !important;
+    border-color: rgba(91,141,238,0.3) !important;
+}
+
+.noticia-vazio {
+    font-size: 13px;
+    color: #4a4a6a;
+    text-align: center;
+    padding: 10px;
 }
 
 .suggestions-row {
@@ -446,13 +503,14 @@ if "web_searches" not in st.session_state:
 
 # ── DADOS DO RANKING ───────────────────────────────
 RANKING_IAS = [
-    {"pos": "🥇", "nome": "ChatGPT",  "empresa": "OpenAI",    "cor": "#10a37f", "uso": "92%"},
-    {"pos": "🥈", "nome": "Gemini",   "empresa": "Google",    "cor": "#4285f4", "uso": "78%"},
-    {"pos": "🥉", "nome": "Copilot",  "empresa": "Microsoft", "cor": "#0078d4", "uso": "65%"},
-    {"pos": "4️⃣", "nome": "Claude",   "empresa": "Anthropic", "cor": "#f55036", "uso": "54%"},
-    {"pos": "5️⃣", "nome": "Llama",    "empresa": "Meta",      "cor": "#0866ff", "uso": "41%"},
-    {"pos": "6️⃣", "nome": "Grok",     "empresa": "xAI",       "cor": "#a0a0b0", "uso": "28%"},
+    {"pos": "🥇", "nome": "ChatGPT",  "empresa": "OpenAI",    "cor": "#10a37f", "uso": "54.7%"},
+    {"pos": "🥈", "nome": "Gemini",   "empresa": "Google",    "cor": "#4285f4", "uso": "27.4%"},
+    {"pos": "🥉", "nome": "Claude",   "empresa": "Anthropic", "cor": "#f55036", "uso": "8.2%"},
+    {"pos": "4️⃣", "nome": "DeepSeek", "empresa": "DeepSeek",  "cor": "#a0a0b0", "uso": "4.1%"},
+    {"pos": "5️⃣", "nome": "Grok",     "empresa": "xAI",       "cor": "#0866ff", "uso": "2.8%"},
+    {"pos": "6️⃣", "nome": "Perplexity","empresa": "Perplexity","cor": "#22d3a5", "uso": "1.5%"},
 ]
+
 
 # ── SIDEBAR ────────────────────────────────────────
 with st.sidebar:
@@ -461,6 +519,7 @@ with st.sidebar:
         <div style="font-size:28px">🤖</div>
         <h2>Impulza Digital</h2>
         <p>Agente de Suporte com IA</p>
+        <p class="dev-credit">Desenvolvido por Bruno Brito</p>
     </div>
     """, unsafe_allow_html=True)
 
@@ -483,7 +542,7 @@ with st.sidebar:
 
     # ── RANKING ──
     st.markdown("---")
-    st.markdown('<div class="rank-title">🏆 Ranking IAs — 2025</div>', unsafe_allow_html=True)
+    st.markdown('<div class="rank-title">🏆 Ranking IAs — 2026</div>', unsafe_allow_html=True)
 
     for ia in RANKING_IAS:
         st.markdown(f"""
@@ -501,7 +560,7 @@ with st.sidebar:
 
     st.markdown("""
     <div style="font-size:9px;color:#2a2a4a;text-align:right;margin-top:4px;font-family:'JetBrains Mono',monospace">
-        📊 Dados de adoção · 2025
+        📊 Market share por tráfego web · Similarweb, jun/2026
     </div>
     """, unsafe_allow_html=True)
 
@@ -681,6 +740,29 @@ def precisa_busca_web(pergunta):
         # Em caso de falha na classificação, prefere buscar (mais seguro)
         return False
 
+@st.cache_data(ttl=900)  # Atualiza no máximo a cada 15 minutos
+def buscar_noticias_do_dia():
+    """Busca as principais notícias do Brasil hoje via Tavily — sempre dinâmico"""
+    try:
+        tavily_key = os.getenv("TAVILY_API_KEY")
+        if not tavily_key:
+            return []
+        client = TavilyClient(api_key=tavily_key)
+        resultado = client.search(
+            "principais notícias do Brasil hoje",
+            topic="news",
+            max_results=4
+        )
+        noticias = []
+        for r in resultado.get("results", []):
+            noticias.append({
+                "titulo": r.get("title", "Notícia"),
+                "url": r.get("url", "")
+            })
+        return noticias
+    except Exception:
+        return []
+
 @st.cache_data(ttl=300)  # Atualiza no máximo a cada 5 minutos
 def buscar_cotacao_dolar():
     """Busca cotação atual do dólar — tenta 2 fontes diferentes (fallback)"""
@@ -782,54 +864,83 @@ st.markdown(f"""
 <div class="main-spacer"></div>
 """, unsafe_allow_html=True)
 
-# ── BOAS-VINDAS COM PAINEL DO DÓLAR ────────────────
+# ── BOAS-VINDAS COM NOTÍCIAS + PAINEL DO DÓLAR ─────
 if not st.session_state.messages:
 
-    cotacao_dolar = buscar_cotacao_dolar()
-    data_hoje = datetime.now().strftime("%d/%m/%Y")
+    st.markdown("""
+    <div class="welcome-card" style="padding-bottom:12px;">
+        <h3>👋 Olá! Como posso ajudar?</h3>
+        <p>Sou um agente de suporte com IA e acesso à internet em tempo real.<br>
+        Faça qualquer pergunta — suporte técnico, informações atuais ou curiosidades.</p>
+    </div>
+    """, unsafe_allow_html=True)
 
-    if cotacao_dolar:
-        cor_variacao = "#22d3a5" if cotacao_dolar["variacao"] >= 0 else "#ef233c"
-        sinal = "▲" if cotacao_dolar["variacao"] >= 0 else "▼"
-        painel_dolar = (
-            '<div class="dolar-panel">'
-            '<div class="dolar-header">'
-            '<span>💵 Dólar Comercial</span>'
-            f'<span class="dolar-date">{data_hoje}</span>'
+    col_noticias, col_dolar = st.columns(2)
+
+    # ── COLUNA ESQUERDA: NOTÍCIAS DO DIA ──
+    with col_noticias:
+        noticias = buscar_noticias_do_dia()
+        data_hoje_noticias = datetime.now().strftime("%d/%m/%Y")
+
+        itens_noticias = ""
+        if noticias:
+            for n in noticias:
+                titulo_curto = n["titulo"][:70] + ("…" if len(n["titulo"]) > 70 else "")
+                itens_noticias += f'<a href="{n["url"]}" target="_blank" class="noticia-item">{titulo_curto}</a>'
+        else:
+            itens_noticias = '<div class="noticia-vazio">Indisponível no momento</div>'
+
+        noticias_html = (
+            '<div class="news-panel">'
+            '<div class="news-header">'
+            '<span>📰 Notícias do Dia</span>'
+            f'<span class="dolar-date">{data_hoje_noticias}</span>'
             '</div>'
-            f'<div class="dolar-value">R$ {cotacao_dolar["venda"]:.2f}</div>'
-            '<div class="dolar-details">'
-            f'<span>Compra: R$ {cotacao_dolar["compra"]:.2f}</span>'
-            f'<span style="color:{cor_variacao}">{sinal} {abs(cotacao_dolar["variacao"]):.2f}%</span>'
-            '</div>'
+            f'{itens_noticias}'
             '</div>'
         )
-    else:
-        painel_dolar = (
-            '<div class="dolar-panel">'
-            '<div class="dolar-header">'
-            '<span>💵 Dólar Comercial</span>'
-            f'<span class="dolar-date">{data_hoje}</span>'
-            '</div>'
-            '<div class="dolar-value" style="color:#4a4a6a;font-size:16px">Indisponível no momento</div>'
-            '</div>'
-        )
+        st.markdown(noticias_html, unsafe_allow_html=True)
 
-    welcome_html = (
-        '<div class="welcome-card">'
-        '<h3>👋 Olá! Como posso ajudar?</h3>'
-        '<p>Sou um agente de suporte com IA e acesso à internet em tempo real.<br>'
-        'Faça qualquer pergunta — suporte técnico, informações atuais ou curiosidades.</p>'
-        + painel_dolar +
-        '<div class="suggestions-row">'
-        '<span class="suggestion-chip">⚽ Resultados do futebol</span>'
-        '<span class="suggestion-chip">🤖 O que é IA?</span>'
-        '<span class="suggestion-chip">📱 Como te contratar?</span>'
-        '</div>'
-        '</div>'
-    )
+    # ── COLUNA DIREITA: COTAÇÃO DO DÓLAR ──
+    with col_dolar:
+        cotacao_dolar = buscar_cotacao_dolar()
+        data_hoje = datetime.now().strftime("%d/%m/%Y")
 
-    st.markdown(welcome_html, unsafe_allow_html=True)
+        if cotacao_dolar:
+            cor_variacao = "#22d3a5" if cotacao_dolar["variacao"] >= 0 else "#ef233c"
+            sinal = "▲" if cotacao_dolar["variacao"] >= 0 else "▼"
+            painel_dolar = (
+                '<div class="dolar-panel">'
+                '<div class="dolar-header">'
+                '<span>💵 Dólar Comercial</span>'
+                f'<span class="dolar-date">{data_hoje}</span>'
+                '</div>'
+                f'<div class="dolar-value">R$ {cotacao_dolar["venda"]:.2f}</div>'
+                '<div class="dolar-details">'
+                f'<span>Compra: R$ {cotacao_dolar["compra"]:.2f}</span>'
+                f'<span style="color:{cor_variacao}">{sinal} {abs(cotacao_dolar["variacao"]):.2f}%</span>'
+                '</div>'
+                '</div>'
+            )
+        else:
+            painel_dolar = (
+                '<div class="dolar-panel">'
+                '<div class="dolar-header">'
+                '<span>💵 Dólar Comercial</span>'
+                f'<span class="dolar-date">{data_hoje}</span>'
+                '</div>'
+                '<div class="dolar-value" style="color:#4a4a6a;font-size:16px">Indisponível no momento</div>'
+                '</div>'
+            )
+        st.markdown(painel_dolar, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div class="suggestions-row" style="margin-top:16px;">
+        <span class="suggestion-chip">⚽ Resultados do futebol</span>
+        <span class="suggestion-chip">🤖 O que é IA?</span>
+        <span class="suggestion-chip">📱 Como te contratar?</span>
+    </div>
+    """, unsafe_allow_html=True)
 
 # ── HISTÓRICO ──────────────────────────────────────
 for msg in st.session_state.messages:
