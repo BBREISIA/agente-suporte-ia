@@ -8,6 +8,8 @@
 import streamlit as st
 import os
 import requests
+import pandas as pd
+import plotly.graph_objects as go
 from dotenv import load_dotenv
 from langchain_groq import ChatGroq
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
@@ -453,6 +455,96 @@ hr { border-color: #1a1a2e !important; margin: 12px 0 !important; }
     margin-bottom: 8px;
 }
 
+/* ── ABAS (TABS) ── */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px;
+    background: #0d0d1a;
+    border: 1px solid #1a1a2e;
+    border-radius: 10px;
+    padding: 4px;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background: transparent;
+    border-radius: 8px;
+    color: #6b6b8a;
+    font-weight: 600;
+    font-size: 13px;
+    padding: 8px 16px;
+}
+
+.stTabs [aria-selected="true"] {
+    background: rgba(245,80,54,0.1) !important;
+    color: #f55036 !important;
+}
+
+/* ── CALCULADORA FINANCEIRA ── */
+.calc-form-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #6b6b8a;
+    margin: 14px 0 6px 0;
+}
+
+.stNumberInput input {
+    background: #111128 !important;
+    border: 1px solid #1e1e3a !important;
+    border-radius: 10px !important;
+    color: #c8cce8 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+}
+
+.calc-results-row {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.calc-result-card {
+    flex: 1;
+    background: #0d0d1a;
+    border: 1px solid #1a1a2e;
+    border-radius: 12px;
+    padding: 14px 16px;
+    text-align: center;
+}
+
+.calc-result-label {
+    font-size: 10px;
+    color: #4a4a6a;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 6px;
+}
+
+.calc-result-value {
+    font-size: 18px;
+    font-weight: 800;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.calc-result-sub {
+    font-size: 10px;
+    color: #4a4a6a;
+    margin-top: 4px;
+}
+
+.calc-empty-state {
+    background: #0d0d1a;
+    border: 1px dashed #1a1a2e;
+    border-radius: 14px;
+    padding: 48px 24px;
+    text-align: center;
+    color: #4a4a6a;
+    font-size: 13px;
+    line-height: 1.6;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+}
+
 /* ── FONTES CONSULTADAS ── */
 .fontes-box {
     background: rgba(255,255,255,0.02);
@@ -864,13 +956,17 @@ st.markdown(f"""
 <div class="main-spacer"></div>
 """, unsafe_allow_html=True)
 
-# ── BOAS-VINDAS COM NOTÍCIAS + PAINEL DO DÓLAR ─────
-if not st.session_state.messages:
+# ── ABAS PRINCIPAIS ────────────────────────────────
+tab_chat, tab_calc = st.tabs(["💬 Chat com o Agente", "🧮 Calculadora Financeira"])
 
-    st.markdown("""
-    <div class="welcome-card" style="padding-bottom:12px;">
-        <h3>👋 Olá! Como posso ajudar?</h3>
-        <p>Sou um agente de suporte com IA e acesso à internet em tempo real.<br>
+with tab_chat:
+    # ── BOAS-VINDAS COM NOTÍCIAS + PAINEL DO DÓLAR ─────
+    if not st.session_state.messages:
+
+        st.markdown("""
+        <div class="welcome-card" style="padding-bottom:12px;">
+            <h3>👋 Olá! Como posso ajudar?</h3>
+            <p>Sou um agente de suporte com IA e acesso à internet em tempo real.<br>
         Faça qualquer pergunta — suporte técnico, informações atuais ou curiosidades.</p>
     </div>
     """, unsafe_allow_html=True)
@@ -942,123 +1038,256 @@ if not st.session_state.messages:
     </div>
     """, unsafe_allow_html=True)
 
-# ── HISTÓRICO ──────────────────────────────────────
-for msg in st.session_state.messages:
-    avatar_icon = "🧑" if msg["role"] == "user" else "🤖"
-    with st.chat_message(msg["role"], avatar=avatar_icon):
-        st.write(msg["content"])
-        if "fontes" in msg and msg["fontes"]:
-            fontes_html = '<div class="fontes-box"><div class="fontes-label">🔗 Fontes consultadas</div>'
-            for f in msg["fontes"]:
-                fontes_html += f'<a href="{f["url"]}" target="_blank" class="fonte-link">{f["titulo"][:60]}</a>'
-            fontes_html += '</div>'
-            st.markdown(fontes_html, unsafe_allow_html=True)
-        if "time" in msg:
+    # ── HISTÓRICO ──────────────────────────────────────
+    for msg in st.session_state.messages:
+        avatar_icon = "🧑" if msg["role"] == "user" else "🤖"
+        with st.chat_message(msg["role"], avatar=avatar_icon):
+            st.write(msg["content"])
+            if "fontes" in msg and msg["fontes"]:
+                fontes_html = '<div class="fontes-box"><div class="fontes-label">🔗 Fontes consultadas</div>'
+                for f in msg["fontes"]:
+                    fontes_html += f'<a href="{f["url"]}" target="_blank" class="fonte-link">{f["titulo"][:60]}</a>'
+                fontes_html += '</div>'
+                st.markdown(fontes_html, unsafe_allow_html=True)
+            if "time" in msg:
+                st.markdown(
+                    f'<div class="msg-time">{msg["time"]}</div>',
+                    unsafe_allow_html=True
+                )
+
+    # ── INPUT ──────────────────────────────────────────
+    if prompt := st.chat_input("Digite sua mensagem..."):
+        now = datetime.now().strftime("%H:%M")
+
+        # Adiciona mensagem do usuário
+        st.session_state.messages.append({
+            "role": "user",
+            "content": prompt,
+            "time": now
+        })
+
+        with st.chat_message("user", avatar="🧑"):
+            st.write(prompt)
             st.markdown(
-                f'<div class="msg-time">{msg["time"]}</div>',
+                f'<div class="msg-time">{now}</div>',
                 unsafe_allow_html=True
             )
 
-# ── INPUT ──────────────────────────────────────────
-if prompt := st.chat_input("Digite sua mensagem..."):
-    now = datetime.now().strftime("%H:%M")
+        # Detecta automaticamente o domínio do atendimento
+        dominio_detectado = detectar_dominio(prompt)
+        st.session_state.dominio_atual = dominio_detectado
+        info_dominio = DOMINIOS[dominio_detectado]
 
-    # Adiciona mensagem do usuário
-    st.session_state.messages.append({
-        "role": "user",
-        "content": prompt,
-        "time": now
-    })
-
-    with st.chat_message("user", avatar="🧑"):
-        st.write(prompt)
         st.markdown(
-            f'<div class="msg-time">{now}</div>',
+            f'<div class="search-indicator" style="color:{info_dominio["cor"]};background:{info_dominio["cor"]}14;border-color:{info_dominio["cor"]}33">'
+            f'{info_dominio["icone"]} Modo detectado: {dominio_detectado}</div>',
             unsafe_allow_html=True
         )
 
-    # Detecta automaticamente o domínio do atendimento
-    dominio_detectado = detectar_dominio(prompt)
-    st.session_state.dominio_atual = dominio_detectado
-    info_dominio = DOMINIOS[dominio_detectado]
+        # Detecta moeda ou busca web genérica
+        contexto_web = ""
+        fontes_consultadas = []
+        moeda_detectada = detectar_moeda(prompt)
 
-    st.markdown(
-        f'<div class="search-indicator" style="color:{info_dominio["cor"]};background:{info_dominio["cor"]}14;border-color:{info_dominio["cor"]}33">'
-        f'{info_dominio["icone"]} Modo detectado: {dominio_detectado}</div>',
-        unsafe_allow_html=True
-    )
+        if moeda_detectada:
+            st.markdown(
+                f'<div class="search-indicator">💰 Buscando cotação de {moeda_detectada}...</div>',
+                unsafe_allow_html=True
+            )
+            cotacao = buscar_cotacao(moeda_detectada)
+            if cotacao:
+                contexto_web = f"""
+    Cotação atual de {cotacao['moeda']} em Reais (BRL):
+    - Compra: R$ {float(cotacao['compra']):.2f}
+    - Venda: R$ {float(cotacao['venda']):.2f}
+    - Variação: {cotacao['variacao']}%
+    - Atualizado em: {cotacao['hora']}
 
-    # Detecta moeda ou busca web genérica
-    contexto_web = ""
-    fontes_consultadas = []
-    moeda_detectada = detectar_moeda(prompt)
+    Use esses dados exatos na resposta.
+    """
+                fontes_consultadas = [{"titulo": "AwesomeAPI — Cotações em tempo real", "url": "https://docs.awesomeapi.com.br/api-de-moedas"}]
+                st.session_state.web_searches += 1
+        elif precisa_busca_web(prompt):
+            st.markdown(
+                '<div class="search-indicator">🌐 Buscando informações atuais na web...</div>',
+                unsafe_allow_html=True
+            )
+            resultado, fontes = buscar_web(prompt)
+            if resultado:
+                contexto_web = f"\n\nInformações atuais da web:\n{resultado}\n\nUse essas informações na resposta."
+                fontes_consultadas = fontes
+                st.session_state.web_searches += 1
 
-    if moeda_detectada:
-        st.markdown(
-            f'<div class="search-indicator">💰 Buscando cotação de {moeda_detectada}...</div>',
-            unsafe_allow_html=True
+        # Monta histórico para LangChain
+        lc_messages = [SystemMessage(content=info_dominio["prompt"] + contexto_web)]
+        for m in st.session_state.messages:
+            if m["role"] == "user":
+                lc_messages.append(HumanMessage(content=m["content"]))
+            else:
+                lc_messages.append(AIMessage(content=m["content"]))
+
+        # Streaming da resposta
+        with st.chat_message("assistant", avatar="🤖"):
+            placeholder = st.empty()
+            full_response = ""
+            for chunk in get_model().stream(lc_messages):
+                full_response += chunk.content
+                placeholder.markdown(full_response + "▌")
+            placeholder.markdown(full_response)
+
+            # Exibe as fontes consultadas, se houver
+            if fontes_consultadas:
+                fontes_html = '<div class="fontes-box"><div class="fontes-label">🔗 Fontes consultadas</div>'
+                for f in fontes_consultadas:
+                    fontes_html += f'<a href="{f["url"]}" target="_blank" class="fonte-link">{f["titulo"][:60]}</a>'
+                fontes_html += '</div>'
+                st.markdown(fontes_html, unsafe_allow_html=True)
+
+            resp_time = datetime.now().strftime("%H:%M")
+            st.markdown(
+                f'<div class="msg-time">{resp_time}</div>',
+                unsafe_allow_html=True
+            )
+
+        # Salva resposta no histórico (incluindo fontes, para persistir após rerun)
+        st.session_state.messages.append({
+            "role": "assistant",
+            "content": full_response,
+            "time": resp_time,
+            "fontes": fontes_consultadas
+        })
+
+        st.rerun()
+
+# ═══════════════════════════════════════════════════
+#   ABA: CALCULADORA FINANCEIRA
+# ═══════════════════════════════════════════════════
+with tab_calc:
+    st.markdown("""
+    <div class="welcome-card" style="text-align:left;padding:24px 28px;margin-bottom:20px;">
+        <h3 style="text-align:left;">🧮 Simulador de Juros Compostos</h3>
+        <p style="text-align:left;">Simule a evolução do seu dinheiro ao longo do tempo —
+        para investimentos, aposentadoria ou planejamento financeiro.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    col_form, col_resultado = st.columns([1, 1.4])
+
+    with col_form:
+        st.markdown('<div class="calc-form-label">💰 Valor inicial (R$)</div>', unsafe_allow_html=True)
+        valor_inicial = st.number_input(
+            "Valor inicial", min_value=0.0, value=1000.0, step=100.0,
+            label_visibility="collapsed", key="calc_valor_inicial"
         )
-        cotacao = buscar_cotacao(moeda_detectada)
-        if cotacao:
-            contexto_web = f"""
-Cotação atual de {cotacao['moeda']} em Reais (BRL):
-- Compra: R$ {float(cotacao['compra']):.2f}
-- Venda: R$ {float(cotacao['venda']):.2f}
-- Variação: {cotacao['variacao']}%
-- Atualizado em: {cotacao['hora']}
 
-Use esses dados exatos na resposta.
-"""
-            fontes_consultadas = [{"titulo": "AwesomeAPI — Cotações em tempo real", "url": "https://docs.awesomeapi.com.br/api-de-moedas"}]
-            st.session_state.web_searches += 1
-    elif precisa_busca_web(prompt):
-        st.markdown(
-            '<div class="search-indicator">🌐 Buscando informações atuais na web...</div>',
-            unsafe_allow_html=True
+        st.markdown('<div class="calc-form-label">📅 Aporte mensal (R$)</div>', unsafe_allow_html=True)
+        aporte_mensal = st.number_input(
+            "Aporte mensal", min_value=0.0, value=200.0, step=50.0,
+            label_visibility="collapsed", key="calc_aporte"
         )
-        resultado, fontes = buscar_web(prompt)
-        if resultado:
-            contexto_web = f"\n\nInformações atuais da web:\n{resultado}\n\nUse essas informações na resposta."
-            fontes_consultadas = fontes
-            st.session_state.web_searches += 1
 
-    # Monta histórico para LangChain
-    lc_messages = [SystemMessage(content=info_dominio["prompt"] + contexto_web)]
-    for m in st.session_state.messages:
-        if m["role"] == "user":
-            lc_messages.append(HumanMessage(content=m["content"]))
+        st.markdown('<div class="calc-form-label">📈 Taxa de juros (% ao mês)</div>', unsafe_allow_html=True)
+        taxa_juros = st.number_input(
+            "Taxa de juros", min_value=0.0, value=0.8, step=0.1, format="%.2f",
+            label_visibility="collapsed", key="calc_taxa",
+            help="Ex: poupança ≈ 0,5% a.m. · CDB ≈ 0,9% a.m. · Tesouro Selic ≈ 0,9% a.m."
+        )
+
+        st.markdown('<div class="calc-form-label">⏳ Período (meses)</div>', unsafe_allow_html=True)
+        periodo_meses = st.number_input(
+            "Período em meses", min_value=1, value=24, step=1,
+            label_visibility="collapsed", key="calc_periodo"
+        )
+
+        calcular = st.button("🧮 Calcular simulação", use_container_width=True)
+
+    # Função de cálculo de juros compostos com aportes mensais
+    def calcular_juros_compostos(inicial, aporte, taxa_pct, meses):
+        taxa = taxa_pct / 100
+        saldo = inicial
+        historico = []
+        total_investido = inicial
+        for mes in range(1, meses + 1):
+            saldo = saldo * (1 + taxa) + aporte
+            total_investido += aporte
+            historico.append({
+                "mes": mes,
+                "saldo": saldo,
+                "total_investido": total_investido,
+                "rendimento": saldo - total_investido
+            })
+        return pd.DataFrame(historico)
+
+    with col_resultado:
+        if calcular or "calc_resultado" in st.session_state:
+            if calcular:
+                df = calcular_juros_compostos(valor_inicial, aporte_mensal, taxa_juros, int(periodo_meses))
+                st.session_state.calc_resultado = df
+            else:
+                df = st.session_state.calc_resultado
+
+            saldo_final = df["saldo"].iloc[-1]
+            total_investido_final = df["total_investido"].iloc[-1]
+            rendimento_final = df["rendimento"].iloc[-1]
+            percentual_rendimento = (rendimento_final / total_investido_final * 100) if total_investido_final > 0 else 0
+
+            # Cards de resultado
+            st.markdown(f"""
+            <div class="calc-results-row">
+                <div class="calc-result-card">
+                    <div class="calc-result-label">Saldo Final</div>
+                    <div class="calc-result-value" style="color:#22d3a5">R$ {saldo_final:,.2f}</div>
+                </div>
+                <div class="calc-result-card">
+                    <div class="calc-result-label">Total Investido</div>
+                    <div class="calc-result-value" style="color:#5b8dee">R$ {total_investido_final:,.2f}</div>
+                </div>
+                <div class="calc-result-card">
+                    <div class="calc-result-label">Rendimento</div>
+                    <div class="calc-result-value" style="color:#f5c518">R$ {rendimento_final:,.2f}</div>
+                    <div class="calc-result-sub">+{percentual_rendimento:.1f}% sobre o investido</div>
+                </div>
+            </div>
+            """.replace(",", "X").replace(".", ",").replace("X", "."), unsafe_allow_html=True)
+
+            # Gráfico de evolução
+            fig = go.Figure()
+            fig.add_trace(go.Scatter(
+                x=df["mes"], y=df["total_investido"],
+                name="Total Investido",
+                line=dict(color="#5b8dee", width=2, dash="dot"),
+                fill="tozeroy", fillcolor="rgba(91,141,238,0.05)"
+            ))
+            fig.add_trace(go.Scatter(
+                x=df["mes"], y=df["saldo"],
+                name="Saldo Total",
+                line=dict(color="#22d3a5", width=3),
+                fill="tonexty", fillcolor="rgba(34,211,165,0.1)"
+            ))
+            fig.update_layout(
+                template="plotly_dark",
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                font=dict(family="Inter, sans-serif", color="#c8cce8", size=12),
+                margin=dict(l=10, r=10, t=20, b=10),
+                height=320,
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                xaxis=dict(title="Meses", gridcolor="#1a1a2e", zeroline=False),
+                yaxis=dict(title="R$", gridcolor="#1a1a2e", zeroline=False, tickprefix="R$ "),
+                hovermode="x unified"
+            )
+            st.plotly_chart(fig, use_container_width=True)
+
         else:
-            lc_messages.append(AIMessage(content=m["content"]))
+            st.markdown("""
+            <div class="calc-empty-state">
+                <div style="font-size:32px;margin-bottom:8px;">📊</div>
+                <div>Preencha os campos ao lado e clique em<br><strong>"Calcular simulação"</strong> para ver o resultado.</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-    # Streaming da resposta
-    with st.chat_message("assistant", avatar="🤖"):
-        placeholder = st.empty()
-        full_response = ""
-        for chunk in get_model().stream(lc_messages):
-            full_response += chunk.content
-            placeholder.markdown(full_response + "▌")
-        placeholder.markdown(full_response)
-
-        # Exibe as fontes consultadas, se houver
-        if fontes_consultadas:
-            fontes_html = '<div class="fontes-box"><div class="fontes-label">🔗 Fontes consultadas</div>'
-            for f in fontes_consultadas:
-                fontes_html += f'<a href="{f["url"]}" target="_blank" class="fonte-link">{f["titulo"][:60]}</a>'
-            fontes_html += '</div>'
-            st.markdown(fontes_html, unsafe_allow_html=True)
-
-        resp_time = datetime.now().strftime("%H:%M")
-        st.markdown(
-            f'<div class="msg-time">{resp_time}</div>',
-            unsafe_allow_html=True
-        )
-
-    # Salva resposta no histórico (incluindo fontes, para persistir após rerun)
-    st.session_state.messages.append({
-        "role": "assistant",
-        "content": full_response,
-        "time": resp_time,
-        "fontes": fontes_consultadas
-    })
-
-    st.rerun()
+    st.markdown("""
+    <div style="margin-top:20px;font-size:11px;color:#3a3a5a;text-align:center;font-family:'JetBrains Mono',monospace">
+        ℹ️ Simulação ilustrativa — não considera impostos (IR) nem taxas de administração. Consulte um especialista para decisões reais de investimento.
+    </div>
+    """, unsafe_allow_html=True)
